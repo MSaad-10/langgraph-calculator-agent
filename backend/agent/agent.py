@@ -25,8 +25,7 @@ tools = [add, multiply, divide, subtract, power, modulus, square_root]
 # 3. Model
 model = init_chat_model(
     "gemini-3.6-flash",
-    model_provider="google_genai",
-    max_tokens=500
+    model_provider="google_genai"
 )
 
 model_with_tools = model.bind_tools(tools)
