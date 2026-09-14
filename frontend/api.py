@@ -124,3 +124,13 @@ def reset_password(token: str, password: str):
             "password": password,
         },
     )
+
+
+# Resend OTP API Function
+def resend_otp(email: str):
+    return requests.post(
+        f"{BASE_URL}/auth/resend-otp",
+        json={
+            "email": email,
+        },
+    )

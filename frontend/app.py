@@ -1,6 +1,6 @@
 import streamlit as st
-
-from api import (login, signup, verify_otp, create_session, get_sessions, forgot_password, reset_password)
+import time
+from api import (login, signup, verify_otp, create_session, get_sessions, forgot_password, reset_password, resend_otp)
 from chat import show_chat
 
 
@@ -18,37 +18,23 @@ def show_signup():
 
     username = st.text_input("Username")
     email = st.text_input("Email")
-    password = st.text_input(
-        "Password",
-        type="password",
-    )
+    password = st.text_input("Password", type="password",)
 
-    if st.button(
-        "Sign Up",
-        use_container_width=True,
-    ):
+    if st.button("Sign Up", use_container_width=True,):
 
         if not username or not email or not password:
-            st.warning(
-                "Please fill in all fields."
-            )
+            st.warning("Please fill in all fields.")
 
         else:
-            response = signup(
-                username,
-                email,
-                password,
-            )
+            response = signup(username, email, password,)
 
             if response.status_code == 200:
-
                 st.session_state["signup_email"] = email
                 st.session_state["signup_username"] = username
                 st.session_state["otp_stage"] = True
-
-                st.success(
-                    "OTP sent to your email."
-                )
+                st.session_state["otp_expires_at"] = (time.time() + 1*60)
+                
+                st.success("OTP sent to your email.")
 
                 st.rerun()
 
@@ -183,54 +169,82 @@ def show_login():
 def show_otp_verification():
 
     st.title("📧 Verify Your Email")
+    email = st.session_state["signup_email"]
 
-    st.write(
-        f"Enter the 6-digit OTP sent to "
-        f"{st.session_state['signup_email']}."
-    )
+    st.write(f"Enter the 6-digit OTP sent to {email}.")
 
-    otp = st.text_input(
-        "OTP",
-        max_chars=6,
-    )
+    # Get OTP expiration time
+    expires_at = st.session_state.get("otp_expires_at")
 
-    if st.button(
-        "Verify Email",
-        use_container_width=True,
-    ):
+    # Calculate remaining time
+    remaining_seconds = 0
 
-        if not otp:
-            st.warning("Please enter the OTP.")
+    if expires_at:
+        remaining_seconds = max(0, int(expires_at - time.time()))
 
-        else:
+    if remaining_seconds > 0:
+        minutes = remaining_seconds // 60
+        seconds = remaining_seconds % 60
 
-            response = verify_otp(
-                st.session_state["signup_email"],
-                otp,
-            )
+        # Live countdown placeholder — updates every second via rerun
+        timer_placeholder = st.empty()
+        timer_placeholder.info(f"OTP expires in {minutes:02d}:{seconds:02d}")
+
+        otp = st.text_input("OTP", max_chars=6,)
+
+        if st.button("Verify Email", use_container_width=True,):
+
+            if not otp:
+                st.warning("Please enter the OTP.")
+            else:
+
+                response = verify_otp(email, otp,)
+
+                if response.status_code == 200:
+                    st.balloons()
+                    st.success("✅ Email verified! Your account has been created successfully.")
+                    st.info("Redirecting you to Sign In in a moment...")
+
+                    # Give the user time to read the success message
+                    time.sleep(3)
+
+                    st.session_state.pop("signup_email", None,)
+                    st.session_state.pop("signup_username", None,)
+                    st.session_state.pop("otp_stage", None,)
+                    st.session_state.pop("otp_expires_at", None,)
+
+                    st.session_state["page"] = "login"
+
+                    st.rerun()
+
+                else:
+
+                    try:
+                        error = response.json()["detail"]
+
+                    except Exception:
+                        error = "OTP verification failed."
+
+                    st.error(error)
+
+        # Tick every second to keep the countdown live
+        time.sleep(1)
+        st.rerun()
+
+    # OTP has expired
+    else:
+
+        st.error("Your OTP has expired.")
+
+        if st.button("Resend OTP", use_container_width=True,):
+
+            response = resend_otp(email)
 
             if response.status_code == 200:
 
-                st.success(
-                    "Account created successfully!"
-                )
+                st.session_state["otp_expires_at"] = (time.time() + 1 * 60)
 
-                st.session_state.pop(
-                    "signup_email",
-                    None,
-                )
-
-                st.session_state.pop(
-                    "signup_username",
-                    None,
-                )
-
-                st.session_state.pop(
-                    "otp_stage",
-                    None,
-                )
-
-                st.session_state["page"] = "login"
+                st.success("A new OTP has been sent to your email.")
 
                 st.rerun()
 
@@ -238,8 +252,9 @@ def show_otp_verification():
 
                 try:
                     error = response.json()["detail"]
+
                 except Exception:
-                    error = "OTP verification failed."
+                    error = "Unable to resend OTP."
 
                 st.error(error)
 
@@ -324,18 +339,27 @@ def show_reset_password(token: str):
     confirm_password = st.text_input("Confirm Password", type="password")
 
     if st.button("Set New Password", use_container_width=True,):
-        
+
         if not new_password or not confirm_password:
             st.warning("Please fill in both password fields.")
 
         elif new_password != confirm_password:
             st.error("Passwords do not match.")
 
-        else:   
+        else:
             response = reset_password(token=token, password=new_password,)
 
             if response.status_code == 200:
-                st.success("Password reset successfully!")
+                # Clear the URL token so the router doesn't re-enter
+                # this screen on the next rerun
+                st.query_params.clear()
+                st.session_state.pop("reset_link_expired", None)
+
+                st.success("✅ Password reset successfully!")
+                st.info("Redirecting you to Sign In in a moment...")
+
+                time.sleep(2.5)
+
                 st.session_state["page"] = "login"
                 st.rerun()
 
@@ -343,11 +367,53 @@ def show_reset_password(token: str):
                 try:
                     error = response.json()["detail"]
                 except Exception:
-                    error = ("Unable to reset the password.")
+                    error = "Unable to reset the password."
+
                 st.error(error)
+
+                # Mark the link as failed so the Resend section appears
+                st.session_state["reset_link_expired"] = True
+
+    # ── Resend Link section 
+    if st.session_state.get("reset_link_expired"):
+
+        st.divider()
+        st.warning(
+            "Your reset link is expired or invalid. "
+            "Enter your email below to receive a new one."
+        )
+
+        resend_email = st.text_input(
+            "Email address",
+            placeholder="Enter your registered email",
+            key="resend_reset_email",
+        )
+
+        if st.button("📧 Resend Link", use_container_width=True):
+
+            if not resend_email:
+                st.warning("Please enter your email address.")
+
+            else:
+                resend_response = forgot_password(resend_email)
+
+                if resend_response.status_code == 200:
+                    st.session_state.pop("reset_link_expired", None)
+                    st.success(
+                        "✅ A new password reset link has been sent to your email."
+                    )
+
+                else:
+                    try:
+                        err = resend_response.json()["detail"]
+                    except Exception:
+                        err = "Unable to send reset link. Please try again."
+                    st.error(err)
+
     st.divider()
 
     if st.button("← Back to Sign In", use_container_width=True,):
+        st.session_state.pop("reset_link_expired", None)
         st.session_state["page"] = "login"
         st.rerun()
 

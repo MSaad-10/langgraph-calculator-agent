@@ -2,6 +2,70 @@ import streamlit as st
 from api import (create_session, send_message, continue_session, delete_session, get_chat_history, get_sessions)
 
 
+TOOL_LABELS = {
+    "add":         "➕ Addition",
+    "subtract":    "➖ Subtraction",
+    "multiply":    "✖️  Multiplication",
+    "divide":      "➗ Division",
+    "power":       "🔋 Power",
+    "modulus":     "🔢 Modulus",
+    "square_root": "√  Square Root",
+}
+
+
+def extract_text(content) -> str:
+    """Return plain text from either a string or a list of content blocks.
+
+    Live chat messages arrive as a plain string.
+    History messages loaded from the DB arrive as a list:
+        [{"type": "text", "text": "...", "extras": {...}}, ...]
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                return block.get("text", "")
+        return ""  # empty list → nothing to show
+    return str(content)
+
+
+def render_message(message: dict):
+    """Render a single message, handling tool calls and tool results."""
+
+    role = message.get("role", "")
+    content = message.get("content", "")
+    tool_calls = message.get("tool_calls", [])
+
+    # ── AI message 
+    if role in ("ai", "assistant"):
+
+        # Show tool-call banners when the AI is invoking tools
+        if tool_calls:
+            for tc in tool_calls:
+                tool_name = tc.get("name", "unknown")
+                args = tc.get("args", {})
+                label = TOOL_LABELS.get(tool_name, f"🔧 {tool_name}")
+                args_str = ", ".join(f"{k}={v}" for k, v in args.items())
+                with st.chat_message("assistant"):
+                    st.info(f"**{label}** — calling `{tool_name}({args_str})`")
+
+        # Show the text reply (skip if empty — that's a pure tool-call trigger)
+        text = extract_text(content)
+        if text:
+            with st.chat_message("assistant"):
+                st.write(text)
+
+    # ── Tool result message 
+    elif role == "tool":
+        pass
+
+    # ── Human message
+    elif role in ("human", "user"):
+        with st.chat_message("user"):
+            st.write(extract_text(content))
+
+
 def load_sessions():
     response = get_sessions(st.session_state["access_token"])
 
@@ -144,11 +208,7 @@ def show_chat():
 
     # Display conversation
     for message in st.session_state["messages"]:
-
-        with st.chat_message(
-            message["role"]
-        ):
-            st.write(message["content"])
+        render_message(message)
 
     # User input
     user_input = st.chat_input(
@@ -180,7 +240,22 @@ def show_chat():
             data = response.json()
 
             assistant_message = data["message"]
+            tool_calls = data.get("tool_calls", [])
 
+            # Show tool call banners for each tool used
+            for tc in tool_calls:
+                render_message({
+                    "role": "ai",
+                    "content": "",
+                    "tool_calls": [tc],
+                })
+                st.session_state["messages"].append({
+                    "role": "ai",
+                    "content": "",
+                    "tool_calls": [tc],
+                })
+
+            # Show and store the final assistant reply
             with st.chat_message("assistant"):
                 st.write(assistant_message)
 
@@ -188,6 +263,7 @@ def show_chat():
                 {
                     "role": "assistant",
                     "content": assistant_message,
+                    "tool_calls": [],
                 }
             )
 
@@ -199,5 +275,3 @@ def show_chat():
                 error = "Something went wrong."
 
             st.error(error)
-
-
