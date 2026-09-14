@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 
-RESET_TOKEN_EXPIRATION_MINUTES = 15
+RESET_TOKEN_EXPIRATION_MINUTES = 5
 
 
 def generate_reset_token() -> str:

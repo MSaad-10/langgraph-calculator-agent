@@ -35,6 +35,11 @@ async def chat(data: ChatRequest, request: Request, user_id: int = Depends(get_c
         }
     }
 
+    # Snapshot existing message count BEFORE this turn so we only
+    # collect tool calls that belong to the current invocation.
+    state_before = agent.get_state(config)
+    messages_before = len(state_before.values.get("messages", []))
+
     result = agent.invoke(
         {
             "messages": [
@@ -44,14 +49,29 @@ async def chat(data: ChatRequest, request: Request, user_id: int = Depends(get_c
         config=config,
     )
 
-    response = result["messages"][-1].content
+    all_messages = result["messages"]
+
+    # Only look at messages added in THIS turn (not the full history)
+    new_messages = all_messages[messages_before:]
+
+    tool_calls_made = []
+    for msg in new_messages:
+        for tc in getattr(msg, "tool_calls", []):
+            tool_calls_made.append({
+                "name": tc["name"],
+                "args": tc["args"],
+            })
+
+    final_content = all_messages[-1].content
+    final_text = final_content[0]["text"] if isinstance(final_content, list) else final_content
 
     session.updated_at = datetime.now(timezone.utc)
     db.commit()
 
     return {
         "thread_id": data.thread_id,
-        "message": response[0]["text"],
+        "message": final_text,
+        "tool_calls": tool_calls_made,
     }
 
 
@@ -75,6 +95,12 @@ async def get_chat_history(thread_id: str, request: Request, user_id: int = Depe
             {
                 "role": message.type,
                 "content": message.content,
+                # Include tool_calls for AI messages so the frontend
+                # can display which tool was invoked and with what args
+                "tool_calls": [
+                    {"name": tc["name"], "args": tc["args"]}
+                    for tc in getattr(message, "tool_calls", [])
+                ],
             }
             for message in messages
         ],

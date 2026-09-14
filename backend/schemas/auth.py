@@ -29,3 +29,7 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     password: str = Field(min_length=8, max_length=128,)
+
+
+class ResendOTPRequest(BaseModel):
+    email: EmailStr

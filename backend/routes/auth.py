@@ -6,7 +6,7 @@ from database import SessionLocal
 from models.email_verification import EmailVerification
 from models.password_reset import PasswordResetToken
 from models.user import User
-from schemas.auth import (SignupRequest, VerifyOTPRequest, LoginRequest, ResetPasswordRequest, ForgotPasswordRequest)
+from schemas.auth import (SignupRequest, VerifyOTPRequest, LoginRequest, ResetPasswordRequest, ForgotPasswordRequest, ResendOTPRequest)
 from services.auth_service import (hash_password, verify_password)
 from services.email_service import send_otp_email, send_password_reset_email
 from services.otp_service import (generate_otp, get_otp_expiration, hash_otp, verify_otp)
@@ -127,6 +127,11 @@ async def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get
                 "a password reset link has been sent."
             )
         }
+    
+    # Invalidate all the prevoius unused tokens
+    existing_tokens = (db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user.id, PasswordResetToken.used == False).all())
+    for token in existing_tokens:
+        token.used = True
 
     reset_token = generate_reset_token()    # Generate secure random token
 
@@ -181,3 +186,29 @@ def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db),):
     db.commit()
 
     return {"message": "Password reset successfully."}
+
+
+# Resend OTP Endpoint
+@router.post("/resend-otp")
+def resend_otp(data: ResendOTPRequest, db: Session = Depends(get_db),):
+    verification = (db.query(EmailVerification).filter(EmailVerification.email == data.email).order_by(EmailVerification.created_at.desc()).first())
+
+    if not verification:
+        raise HTTPException(status_code=404, detail="No pending verification found.",)
+    
+    if verification.expires_at > datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Your current OTP is still valid.",)
+
+    # Generate a completely new OTP
+    otp = generate_otp()
+    verification.otp_hash = hash_otp(otp)
+    verification.attempts = 0
+    verification.expires_at = get_otp_expiration()
+
+    verification.created_at = datetime.now(timezone.utc)
+
+    db.commit()
+
+    send_otp_email(recipient_email=verification.email, otp=otp,)    # Send the new OTP
+
+    return {"message": "A new OTP has been sent to your email."}

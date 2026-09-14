@@ -61,7 +61,7 @@ Click the link below to reset your password:
 
 {reset_url}
 
-This link will expire in 15 minutes.
+This link will expire in 5 minutes.
 
 If you did not request a password reset, you can ignore
 this email.
