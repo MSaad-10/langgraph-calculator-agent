@@ -15,7 +15,6 @@ if not JWT_SECRET_KEY:
 
 
 def create_access_token(user_id: int) -> str:
-
     expires_at = (datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRATION_MINUTES))
     payload = {"sub": str(user_id),"exp": expires_at}
     token = jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)

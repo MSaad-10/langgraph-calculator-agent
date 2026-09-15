@@ -13,7 +13,7 @@ DATABASE_URL = os.getenv(
     "postgresql://postgres:12345678@localhost:5432/calculator_db"
 )
 
-# 1. Message State
+# 1. Agent State
 class AgentState(MessagesState):
     llm_calls: int
 

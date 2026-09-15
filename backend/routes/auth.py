@@ -1,4 +1,3 @@
-from starlette.types import Receive
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -65,19 +64,16 @@ async def verify_email(data: VerifyOTPRequest, db: Session = Depends(get_db)):
     if verification.expires_at < now:
         db.delete(verification)
         db.commit()
-
         raise HTTPException(status_code=400,detail="OTP has expired.")
 
     if verification.attempts >= 5:
         db.delete(verification)
         db.commit()
-
         raise HTTPException(status_code=400,detail="Too many incorrect attempts.",)
 
     if not verify_otp(data.otp,verification.otp_hash):
         verification.attempts += 1
         db.commit()
-
         raise HTTPException(status_code=400,detail="Invalid OTP.",)
 
     user = User(
