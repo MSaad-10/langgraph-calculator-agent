@@ -1,6 +1,7 @@
 import os
 import smtplib
 from email.message import EmailMessage
+from urllib.parse import urlencode
 from dotenv import load_dotenv
 
 
@@ -10,6 +11,7 @@ SMTP_HOST = os.getenv("SMTP_HOST")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
 
 # Function to generate and send OTP
@@ -42,8 +44,8 @@ Calculator Agent
 
 # Function to create and send Password Reset Email
 def send_password_reset_email(recipient_email: str, reset_token: str,) -> None:
-
-    reset_url = ("http://localhost:8501"f"/?page=reset-password&token={reset_token}")
+    query = urlencode({"page": "reset-password", "token": reset_token})
+    reset_url = f"{FRONTEND_URL}/?{query}"
     
     message = EmailMessage()
     

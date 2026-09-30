@@ -10,7 +10,6 @@ from services.auth_service import (hash_password, verify_password)
 from services.email_service import send_otp_email, send_password_reset_email
 from services.otp_service import (generate_otp, get_otp_expiration, hash_otp, verify_otp)
 from services.jwt_services import create_access_token
-from services.auth_dependency import get_current_user_id
 from services.password_reset_service import (generate_reset_token, get_reset_token_expiration, hash_reset_token)
 
 
