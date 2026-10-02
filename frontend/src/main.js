@@ -551,7 +551,8 @@ function formatSessionDate(value) {
 }
 
 function sessionLabel(session) {
-  return `Session ${session.thread_id.slice(0, 6).toUpperCase()}`;
+  const title = String(session?.title || "").trim();
+  return title || "New calculation";
 }
 
 function renderSessionList() {
@@ -562,14 +563,27 @@ function renderSessionList() {
   return state.sessions
     .map((session) => {
       const isActive = session.thread_id === state.activeThreadId;
+      const label = escapeHtml(sessionLabel(session));
+
       return `
         <div class="session-item ${isActive ? "is-active" : ""}">
-          <button class="session-select" data-session-id="${escapeHtml(session.thread_id)}" aria-label="Open ${sessionLabel(session)}">
+          <button
+            class="session-select"
+            data-session-id="${escapeHtml(session.thread_id)}"
+            aria-label="Open ${label}"
+          >
             <span class="session-icon">${icon("calculator")}</span>
-            <span class="session-copy"><strong>${sessionLabel(session)}</strong><small>${formatSessionDate(session.updated_at)}</small></span>
+            <span class="session-copy">
+              <strong>${label}</strong>
+              <small>${formatSessionDate(session.updated_at)}</small>
+            </span>
             <span class="session-arrow">${icon("chevron")}</span>
           </button>
-          ${isActive ? `<button class="session-delete" data-delete-session aria-label="Delete ${sessionLabel(session)}">${icon("trash")}</button>` : ""}
+          ${
+            isActive
+              ? `<button class="session-delete" data-delete-session aria-label="Delete ${label}">${icon("trash")}</button>`
+              : ""
+          }
         </div>`;
     })
     .join("");
@@ -683,7 +697,16 @@ function renderChat() {
       <main class="chat-main">
         <header class="chat-header">
           <button class="icon-button mobile-only" data-open-sidebar aria-label="Open navigation">${icon("menu")}</button>
-          <div class="chat-title"><span>Workspace</span><strong>${activeSession ? sessionLabel(activeSession) : "New calculation"}</strong></div>
+          <div class="chat-title">
+            <span>Workspace</span>
+            <strong>
+              ${
+                activeSession
+                ? escapeHtml(sessionLabel(activeSession))
+                : "New calculation"
+              }
+            </strong>
+          </div>          
           <div class="status-pill ${state.sending ? "is-busy" : ""}" role="status" aria-live="polite"><span></span>${state.sending ? "Agent thinking" : "Agent ready"}</div>
         </header>
         <section class="messages" id="messages" aria-live="polite"><div class="messages-inner">${renderMessageArea()}</div></section>
@@ -794,9 +817,10 @@ async function createSession() {
     const data = await api("/sessions", { method: "POST" });
     const session = {
       thread_id: data.thread_id,
+      title: data.title || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    };
+  };
     state.sessions.unshift(session);
     state.activeThreadId = data.thread_id;
     state.messages = [];
@@ -861,8 +885,12 @@ async function sendMessage(rawText) {
       state.messages.push({ role: "ai", content: "", tool_calls: data.tool_calls });
     }
     state.messages.push({ role: "assistant", content: data.message, tool_calls: [] });
-    const current = state.sessions.find((session) => session.thread_id === state.activeThreadId);
-    if (current) current.updated_at = new Date().toISOString();
+    const current = state.sessions.find((session) => session.thread_id === state.activeThreadId,);
+    if (current) {current.updated_at = new Date().toISOString();
+      if (data.title) {
+        current.title = data.title;
+    }
+  }
     state.sessions.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
   } catch (error) {
     showToast(error.message, "error");
