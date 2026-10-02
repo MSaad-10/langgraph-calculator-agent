@@ -30,7 +30,11 @@ async def create_session(user_id: int = Depends(get_current_user_id), db: Sessio
     db.commit()
     db.refresh(session)
 
-    return {"thread_id": session.thread_id, "message": "Chat session created successfully.",}
+    return {
+        "thread_id": session.thread_id,
+        "title": session.title,
+        "message": "Chat session created successfully.",
+    }
 
 
 # Get sessions Endpoint
@@ -43,6 +47,7 @@ async def get_sessions(user_id: int = Depends(get_current_user_id), db: Session 
         "sessions": [
             {
                 "thread_id": session.thread_id,
+                "title": session.title,
                 "created_at": session.created_at,
                 "updated_at": session.updated_at,
             }
@@ -62,6 +67,7 @@ async def get_session(thread_id: str, user_id: int = Depends(get_current_user_id
 
     return {
         "thread_id": session.thread_id,
+        "title": session.title,
         "created_at": session.created_at,
         "updated_at": session.updated_at,
     }
@@ -83,6 +89,7 @@ def continue_session(thread_id: str, user_id: int = Depends(get_current_user_id)
 
     return {
         "thread_id": session.thread_id,
+        "title": session.title,
         "message": "Chat session continued successfully.",
     }
 

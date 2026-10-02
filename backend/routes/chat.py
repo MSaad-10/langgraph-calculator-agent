@@ -7,6 +7,8 @@ from database import SessionLocal
 from datetime import datetime, timezone
 from langchain.messages import HumanMessage
 
+from services.session_title_service import generate_session_title
+
 
 router = APIRouter(prefix="/chat", tags=["Chat"],)
 
@@ -35,10 +37,29 @@ async def chat(data: ChatRequest, request: Request, user_id: int = Depends(get_c
         }
     }
 
-    # Snapshot existing message count BEFORE this turn so we only
-    # collect tool calls that belong to the current invocation.
     state_before = agent.get_state(config)
-    messages_before = len(state_before.values.get("messages", []))
+    existing_messages = state_before.values.get("messages", [])
+    messages_before = len(existing_messages)
+
+    # Use the current input for a completely new session.
+    # If this is an older untitled session, recover its actual first message.
+    title_source_message = data.user_input
+
+    if not session.title:
+        first_human_message = next(
+        (
+            message
+            for message in existing_messages
+            if getattr(message, "type", None) == "human"
+        ),
+        None,
+    )
+
+        if first_human_message is not None:
+            first_content = first_human_message.content
+
+            if isinstance(first_content, str) and first_content.strip():
+                title_source_message = first_content
 
     result = agent.invoke(
         {
@@ -65,11 +86,16 @@ async def chat(data: ChatRequest, request: Request, user_id: int = Depends(get_c
     final_content = all_messages[-1].content
     final_text = final_content[0]["text"] if isinstance(final_content, list) else final_content
 
+    if not session.title:
+        session.title = generate_session_title(title_source_message)
+
     session.updated_at = datetime.now(timezone.utc)
     db.commit()
+    db.refresh(session)
 
     return {
         "thread_id": data.thread_id,
+        "title": session.title,
         "message": final_text,
         "tool_calls": tool_calls_made,
     }

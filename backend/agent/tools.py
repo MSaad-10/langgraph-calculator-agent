@@ -23,7 +23,7 @@ def add(a: int, b: int) -> int:
     return a + b
 
 @tool
-def divide(a: int, b: int) -> float:
+def divide(a: int, b: int) -> float | str:
     """Divide `a` and `b`.
 
     Args:
@@ -31,7 +31,7 @@ def divide(a: int, b: int) -> float:
         b: Second int
     """
     if b == 0:
-        raise ValueError("Divisor cannot be zero.")
+        return "Divisor cannot be zero."    
     return a / b
 
 @tool
@@ -45,7 +45,7 @@ def subtract(a: int | float, b: int | float) -> int | float:
     return a - b
 
 @tool
-def power(a: int, b: int) -> int:
+def power(a: int, b: int) -> int | str:
     """Raises `a` to the power of `b`.
     
     Args:
@@ -53,11 +53,11 @@ def power(a: int, b: int) -> int:
         b: Exponent int
     """
     if a == 0 and b < 0:
-        raise ValueError("Cannot raise 0 to a negative power.")
+        return "Cannot raise 0 to a negative power."
     return a ** b
 
 @tool
-def modulus(a: int, b: int) -> int:
+def modulus(a: int, b: int) -> int | str:
     """Returns the remainder of `a` divided by `b`.
     
     Args:
@@ -65,17 +65,17 @@ def modulus(a: int, b: int) -> int:
         b: Divisor
     """
     if b == 0:
-        raise ValueError("Divisor cannot be zero.")
+        return "Divisor cannot be zero."
     return a % b
 
 @tool
-def square_root(number: int | float) -> float | int:
+def square_root(number: int | float) -> float | int | str:
     """Returns the square root of `number`.
     
     Args:
         number: Number to find the square root of
     """
     if number < 0:
-        raise ValueError("Number cannot be negative.")
+        return "Number cannot be negative."
     return number ** 0.5
 
